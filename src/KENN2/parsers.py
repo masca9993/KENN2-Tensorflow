@@ -1,6 +1,7 @@
 from KENN2.layers.residual.KnowledgeEnhancer import KnowledgeEnhancer
 from KENN2.layers.Kenn import Kenn
 from KENN2.layers.RelationalKENN import RelationalKENN
+from KENN2.boost_functions.boost import GodelBoostResiduum
 
 
 def unary_parser(knowledge_file, activation=lambda x: x, initial_clause_weight=0.5, save_training_data=False, **kwargs):
@@ -37,7 +38,7 @@ def unary_parser_ke(knowledge_file, initial_clause_weight=0.5, **kwargs):
     return KnowledgeEnhancer(predicates, clauses, initial_clause_weight, **kwargs)
 
 
-def relational_parser(knowledge_file, activation=lambda x: x, initial_clause_weight=0.5, **kwargs):
+def relational_parser(knowledge_file, activation=lambda x: x, initial_clause_weight=0.5, boost_function=GodelBoostResiduum, **kwargs):
     """
     Takes in input the knowledge file containing both unary and binary clauses and returns a RelationalKENN 
     Layer, with input the predicates and clauses found in the knowledge file.
@@ -59,22 +60,31 @@ def relational_parser(knowledge_file, activation=lambda x: x, initial_clause_wei
 
     unary_clauses = []
     binary_clauses = []
+    implication_clauses = []
 
     reading_unary = True
+    reading_binary = True
     for clause in clauses:
+        if clause[0] == '>' and not reading_unary:
+            reading_binary = False
+            continue
         if clause[0] == '>':
             reading_unary = False
             continue
 
         if reading_unary:
             unary_clauses.append(clause)
-        else:
+        elif reading_binary:
             binary_clauses.append(clause)
+        else:
+            implication_clauses.append(clause)
 
     return RelationalKENN(
         u_groundings,
         b_groundings,
         unary_clauses,
         binary_clauses,
+        implication_clauses,
         activation,
-        initial_clause_weight)
+        initial_clause_weight,
+        boost_function=boost_function)

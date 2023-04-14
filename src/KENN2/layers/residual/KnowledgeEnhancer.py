@@ -1,10 +1,11 @@
 import tensorflow as tf
-from KENN2.layers.residual.ClauseEnhancer import ClauseEnhancer
+from KENN2.layers.residual.ClauseEnhancer import ClauseEnhancer, ClauseEnhancerImpl
+from KENN2.boost_functions.boost import GodelBoostResiduum
 
 
 class KnowledgeEnhancer(tf.keras.layers.Layer):
 
-    def __init__(self, predicates, clauses, initial_clause_weight=0.5, save_training_data=False, **kwargs):
+    def __init__(self, predicates, clauses, initial_clause_weight=0.5, implication=False, boost_function=GodelBoostResiduum, save_training_data=False, **kwargs):
         """Initialize the knowledge base.
 
         :param predicates: a list of predicates names
@@ -29,6 +30,8 @@ class KnowledgeEnhancer(tf.keras.layers.Layer):
         self.clauses = clauses
         self.initial_clause_weight = initial_clause_weight
         self.clause_enhancers = []
+        self.implication = implication
+        self.boost_function = boost_function
         self.save_training_data = save_training_data
 
     def build(self, input_shape):
@@ -36,10 +39,15 @@ class KnowledgeEnhancer(tf.keras.layers.Layer):
 
         :param input_shape: the input shape
         """
-
-        for clause in self.clauses:
-            self.clause_enhancers.append(ClauseEnhancer(
-                self.predicates, clause[:-1], self.initial_clause_weight, self.save_training_data))
+        if not self.implication:
+            for clause in self.clauses:
+                self.clause_enhancers.append(ClauseEnhancer(
+                    self.predicates, clause[:-1], self.initial_clause_weight, self.save_training_data))
+        else:
+            for clause in self.clauses:
+                # Clause Enhancer for Implication is automatically initialized with GodelBoostResiduum
+                self.clause_enhancers.append(ClauseEnhancerImpl(
+                    self.predicates, clause[:-1], self.initial_clause_weight, self.boost_function, self.save_training_data))
 
         super(KnowledgeEnhancer, self).build(input_shape)
 
@@ -57,7 +65,6 @@ class KnowledgeEnhancer(tf.keras.layers.Layer):
 
         for clause in self.clause_enhancers:
             delta, indexes = clause(inputs)
-
             deltas_list.append(delta)
             indexes_list.append(indexes)
 

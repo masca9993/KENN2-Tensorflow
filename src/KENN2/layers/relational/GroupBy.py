@@ -34,6 +34,6 @@ class GroupBy(tf.keras.layers.Layer):
         ux = deltas[:, :self.n_unary]
         uy = deltas[:, self.n_unary:2 * self.n_unary]
         b = deltas[:, 2 * self.n_unary:]
-        shape = tf.shape(unary)
+        shape = tf.shape(unary, tf.int64)
 
         return tf.scatter_nd(index1, ux, shape) + tf.scatter_nd(index2, uy, shape), b
