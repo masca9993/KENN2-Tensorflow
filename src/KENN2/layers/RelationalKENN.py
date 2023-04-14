@@ -36,7 +36,8 @@ class RelationalKENN(tf.keras.layers.Layer):
         self.unary_clauses = unary_clauses
         self.binary_predicates = binary_predicates
         self.binary_clauses = binary_clauses
-        self.implication_clauses = implication_clauses
+        self.implication_unary_clauses = implication_clauses[0]   #implication unary clauses are passed as first element in the list of length 2
+        self.implication_binary_clauses = implication_clauses[1]  #implication binary clauses are passed as first element in the list of length 2
         self.activation = activation
         self.initial_clause_weight = initial_clause_weight
         self.boost_function = boost_function
@@ -55,16 +56,19 @@ class RelationalKENN(tf.keras.layers.Layer):
         if len(self.binary_clauses) != 0:
             self.binary_ke = KnowledgeEnhancer(
                 self.binary_predicates, self.binary_clauses, initial_clause_weight=self.initial_clause_weight)
-            self.join = Join()
-            self.group_by = GroupBy(self.n_unary)
 
-        if len(self.implication_clauses) != 0:
+        if len(self.implication_unary_clauses) != 0:
             self.implication_ke = KnowledgeEnhancer(
-                self.binary_predicates, self.implication_clauses, initial_clause_weight=self.initial_clause_weight,
+                self.unary_predicates, self.implication_unary_clauses, initial_clause_weight=self.initial_clause_weight,
                 implication=True, boost_function=self.boost_function)
-            self.join = Join()
-            self.group_by = GroupBy(self.n_unary)
 
+        if len(self.implication_binary_clauses) != 0:
+            self.implication_ke = KnowledgeEnhancer(
+                self.binary_predicates, self.implication_binary_clauses,
+                initial_clause_weight=self.initial_clause_weight, implication=True, boost_function=self.boost_function)
+
+        self.join = Join()
+        self.group_by = GroupBy(self.n_unary)
         super(RelationalKENN, self).build(input_shape)
 
     def call(self, unary, binary, index1, index2, **kwargs):
@@ -87,24 +91,28 @@ class RelationalKENN(tf.keras.layers.Layer):
         if len(self.binary_clauses) != 0 and len(binary) != 0:
             joined_matrix = self.join(u, binary, index1, index2)
             deltas_sum = self.binary_ke(joined_matrix)
-
             delta_up, delta_bp = self.group_by(
                 u, binary, deltas_sum, index1, index2)
         else:
             delta_up = tf.zeros_like(u)
             delta_bp = tf.zeros_like(binary)
 
-        if len(self.implication_clauses) != 0 and len(binary) != 0:
+        if len(self.implication_unary_clauses) != 0:
+            deltas_sum = self.implication_ke(unary)
+            u_impl = u + deltas_sum
+        else:
+            u_impl = u
+
+        if len(self.implication_binary_clauses) != 0:
             joined_matrix = self.join(u, binary, index1, index2)
             deltas_sum = self.implication_ke(joined_matrix)
+            delta_impl_up, delta_impl_bp = self.group_by(
+                u, binary, deltas_sum, index1, index2)
+        else:
+            delta_impl_up = tf.zeros_like(u)
+            delta_impl_bp = tf.zeros_like(binary)
 
-            delta_up, delta_bp = self.group_by(u, binary, deltas_sum, index1, index2)
-
-        elif len(self.implication_clauses) != 0 and len(binary) == 0:
-            deltas_sum = self.implication_ke(unary)
-            u = unary + deltas_sum
-
-        return self.activation(u + delta_up), self.activation(binary + delta_bp)
+        return self.activation(u_impl + delta_up + delta_impl_up), self.activation(binary + delta_bp + delta_impl_bp)
 
     def get_config(self):
         config = super(RelationalKENN, self).get_config()

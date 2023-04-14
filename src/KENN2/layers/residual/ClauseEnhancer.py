@@ -145,7 +145,6 @@ class ClauseEnhancerImpl(tf.keras.layers.Layer):
             literal_index = available_predicates.index(literal)
             self.antecedent_literal_indices.append(literal_index)
 
-            self.scatter_literal_indices.append([literal_index])
             antecedent_signs.append(sign)
 
         self.consequent_literal_indices = []
@@ -195,18 +194,15 @@ class ClauseEnhancerImpl(tf.keras.layers.Layer):
         antecedent_matrix = selected_antecedent_predicates * self.signs[0]
         consequent_matrix = selected_consequent_predicates * self.signs[1]
 
-        signs_mask = np.zeros(self.signs[0].shape[0] + self.signs[1].shape[0])
-        signs_mask[-self.signs[1].shape[0]:] = self.signs[1]
-
-        return signs_mask, antecedent_matrix, consequent_matrix
+        return antecedent_matrix, consequent_matrix
 
     def call(self, inputs, **kwargs):
         """Improve the satisfaction level of the clause.
         :param inputs: the tensor containing predicates' pre-activation values for many entities
         :return: delta vector to be summed to the original pre-activation tensor to obtain an higher satisfaction of \
         the clause"""
-        signs_mask, antecedent_matrix, consequent_matrix = self.grounded_clause(inputs)
-        delta = self.conorm_boost(self.clause_weight, antecedent_matrix, consequent_matrix) * signs_mask
+        antecedent_matrix, consequent_matrix = self.grounded_clause(inputs)
+        delta = self.conorm_boost(self.clause_weight, antecedent_matrix, consequent_matrix) * self.signs[1]
 
         return delta, self.scatter_literal_indices
 
