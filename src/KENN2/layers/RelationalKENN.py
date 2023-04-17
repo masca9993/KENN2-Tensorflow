@@ -44,7 +44,8 @@ class RelationalKENN(tf.keras.layers.Layer):
 
         self.unary_ke = None
         self.binary_ke = None
-        self.implication_ke = None
+        self.implication_unary_ke = None
+        self.implication_binary_ke = None
         self.join = None
         self.group_by = None
 
@@ -58,12 +59,12 @@ class RelationalKENN(tf.keras.layers.Layer):
                 self.binary_predicates, self.binary_clauses, initial_clause_weight=self.initial_clause_weight)
 
         if len(self.implication_unary_clauses) != 0:
-            self.implication_ke = KnowledgeEnhancer(
+            self.implication_unary_ke = KnowledgeEnhancer(
                 self.unary_predicates, self.implication_unary_clauses, initial_clause_weight=self.initial_clause_weight,
                 implication=True, boost_function=self.boost_function)
 
         if len(self.implication_binary_clauses) != 0:
-            self.implication_ke = KnowledgeEnhancer(
+            self.implication_binary_ke = KnowledgeEnhancer(
                 self.binary_predicates, self.implication_binary_clauses,
                 initial_clause_weight=self.initial_clause_weight, implication=True, boost_function=self.boost_function)
 
@@ -98,14 +99,14 @@ class RelationalKENN(tf.keras.layers.Layer):
             delta_bp = tf.zeros_like(binary)
 
         if len(self.implication_unary_clauses) != 0:
-            deltas_sum = self.implication_ke(unary)
+            deltas_sum = self.implication_unary_ke(unary)
             u_impl = u + deltas_sum
         else:
             u_impl = u
 
         if len(self.implication_binary_clauses) != 0:
             joined_matrix = self.join(u, binary, index1, index2)
-            deltas_sum = self.implication_ke(joined_matrix)
+            deltas_sum = self.implication_binary_ke(joined_matrix)
             delta_impl_up, delta_impl_bp = self.group_by(
                 u, binary, deltas_sum, index1, index2)
         else:
